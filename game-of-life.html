@@ -148,8 +148,11 @@
         <option value="beacon">Beacon</option>
       </select>
       <div class="speed-control">
-        <label for="speedSlider">Speed:</label>
+        <label for="speedSlider">Speed:</label><br>
         <input type="range" id="speedSlider" min="1" max="20" value="10">
+      </div>
+	  <div class="shortcuts">
+		Shortcuts: Space (Play/Pause), R (Reset), Shift+D (Draw), Shift+E (Erase)
       </div>
     </div>
   </div>
@@ -429,6 +432,22 @@ toggleClockBtn.addEventListener('click', () => {
 });
 
 resetClockBtn.addEventListener('click', resetClock);
+
+// Adding keyboard shortcuts
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    event.preventDefault(); // Prevent scrolling
+    togglePlayPause();
+  } else if (event.code === 'KeyR') {
+    resetGrid();
+  } else if (event.code === 'KeyD' && event.shiftKey) {
+    mode = 'draw';
+    modeToggle.value = 'draw';
+  } else if (event.code === 'KeyE' && event.shiftKey) {
+    mode = 'erase';
+    modeToggle.value = 'erase';
+  }
+});
 
 drawGrid();
 updateClockDisplay();
