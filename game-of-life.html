@@ -1,0 +1,436 @@
+<html><head><title>Conway's Game of Life - Interactive Edition</title>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+  }
+  .container {
+    display: flex;
+    align-items: center;
+    background-color: #16213e;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  canvas {
+    border: 2px solid #0f3460;
+    background-color: #1a1a2e;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    cursor: crosshair;
+  }
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  button, select {
+    background-color: #0f3460;
+    border: none;
+    color: #e0e0e0;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s, transform 0.1s;
+  }
+  button:hover, select:hover {
+    background-color: #1a5f7a;
+    transform: translateY(-2px);
+  }
+  button:active, select:active {
+    transform: translateY(1px);
+  }
+  select, input[type="range"] {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    background-color: #16213e;
+    color: #e0e0e0;
+  }
+  label {
+    margin-right: 10px;
+    margin-left: 20px;
+  }
+  .speed-control {
+    display: flex;
+    align-items: center;
+  }
+  input[type="range"] {
+    vertical-align: middle;
+  }
+  .mode-toggle {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+  }
+  .mode-toggle label {
+    margin-right: 10px;
+  }
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 30px;
+    width: 150px; /* Fixed width for side panels */
+  }
+  .timer {
+    font-size: 48px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    background: linear-gradient(45deg, #0f3460, #1a5f7a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  }
+  #resetBtn, #resetClockBtn {
+    background-color: #e94560;
+  }
+  #resetBtn:hover, #resetClockBtn:hover {
+    background-color: #ff6b6b;
+  }
+  .game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 600px; /* Fixed width for game area */
+  }
+  h1 {
+    margin: 0 0 20px 0;
+    text-align: center;
+  }
+  .clock-controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="side-panel">
+    <div class="timer" id="timer">00:00</div>
+    <div class="clock-controls">
+      <button id="toggleClockBtn">Pause Clock</button>
+      <button id="resetClockBtn">Reset Clock</button>
+    </div>
+  </div>
+  <div class="game-area">
+    <h1>Conway's Game of Life</h1>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div class="controls">
+      <button id="playPauseBtn">Play</button>
+      <div class="mode-toggle">
+        <label for="modeToggle">Mode:</label>
+        <select id="modeToggle">
+          <option value="draw">Draw</option>
+          <option value="erase">Erase</option>
+        </select>
+      </div>
+      <select id="patternSelect">
+        <option value="single">Single Cell</option>
+        <option value="glider">Glider</option>
+        <option value="blinker">Blinker</option>
+        <option value="toad">Toad</option>
+        <option value="beacon">Beacon</option>
+      </select>
+      <div class="speed-control">
+        <label for="speedSlider">Speed:</label>
+        <input type="range" id="speedSlider" min="1" max="20" value="10">
+      </div>
+    </div>
+  </div>
+  <div class="side-panel">
+    <button id="resetBtn">Reset Game</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const cellSize = 20;
+const cols = Math.floor(canvas.width / cellSize);
+const rows = Math.floor(canvas.height / cellSize);
+
+let grid = createGrid();
+let isPlaying = false;
+let selectedPattern = 'single';
+let speed = 10;
+let mode = 'draw';
+let isDrawing = false;
+let lastUpdateTime = 0;
+
+// Clock variables
+let clockStartTime = 0;
+let clockElapsedTime = 0;
+let isClockRunning = false;
+let clockInterval;
+
+const playPauseBtn = document.getElementById('playPauseBtn');
+const patternSelect = document.getElementById('patternSelect');
+const speedSlider = document.getElementById('speedSlider');
+const modeToggle = document.getElementById('modeToggle');
+const resetBtn = document.getElementById('resetBtn');
+const timerDisplay = document.getElementById('timer');
+const toggleClockBtn = document.getElementById('toggleClockBtn');
+const resetClockBtn = document.getElementById('resetClockBtn');
+
+function createGrid() {
+  return new Array(cols).fill(null)
+    .map(() => new Array(rows).fill(false));
+}
+
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw grid lines
+  ctx.strokeStyle = '#0f3460';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= cols; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * cellSize, 0);
+    ctx.lineTo(i * cellSize, canvas.height);
+    ctx.stroke();
+  }
+  for (let j = 0; j <= rows; j++) {
+    ctx.beginPath();
+    ctx.moveTo(0, j * cellSize);
+    ctx.lineTo(canvas.width, j * cellSize);
+    ctx.stroke();
+  }
+
+  // Draw cells
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      if (grid[i][j]) {
+        ctx.fillStyle = '#e94560';
+        ctx.fillRect(i * cellSize + 1, j * cellSize + 1, cellSize - 2, cellSize - 2);
+      }
+    }
+  }
+}
+
+function countNeighbors(x, y) {
+  let sum = 0;
+  for (let i = -1; i < 2; i++) {
+    for (let j = -1; j < 2; j++) {
+      let col = (x + i + cols) % cols;
+      let row = (y + j + rows) % rows;
+      sum += grid[col][row];
+    }
+  }
+  sum -= grid[x][y];
+  return sum;
+}
+
+function nextGeneration() {
+  let next = createGrid();
+
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      let state = grid[i][j];
+      let neighbors = countNeighbors(i, j);
+
+      if (state == 0 && neighbors == 3) {
+        next[i][j] = true;
+      } else if (state == 1 && (neighbors < 2 || neighbors > 3)) {
+        next[i][j] = false;
+      } else {
+        next[i][j] = state;
+      }
+    }
+  }
+
+  grid = next;
+}
+
+function gameLoop(timestamp) {
+  if (isPlaying) {
+    if (timestamp - lastUpdateTime > 1000 / speed) {
+      nextGeneration();
+      drawGrid();
+      lastUpdateTime = timestamp;
+    }
+    requestAnimationFrame(gameLoop);
+  }
+}
+
+function togglePlayPause() {
+  isPlaying = !isPlaying;
+  playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+  if (isPlaying) {
+    lastUpdateTime = performance.now();
+    requestAnimationFrame(gameLoop);
+    if (!isClockRunning) {
+      startClock();
+    }
+  } else {
+    if (isClockRunning) {
+      pauseClock();
+    }
+  }
+}
+
+function addPattern(x, y) {
+  if (mode === 'erase') {
+    grid[x][y] = false;
+  } else {
+    switch (selectedPattern) {
+      case 'single':
+        grid[x][y] = true;
+        break;
+      case 'glider':
+        grid[x][y] = true;
+        grid[(x+1+cols)%cols][y] = true;
+        grid[(x+2+cols)%cols][y] = true;
+        grid[(x+2+cols)%cols][(y-1+rows)%rows] = true;
+        grid[(x+1+cols)%cols][(y-2+rows)%rows] = true;
+        break;
+      case 'blinker':
+        grid[x][y] = true;
+        grid[(x+1+cols)%cols][y] = true;
+        grid[(x-1+cols)%cols][y] = true;
+        break;
+      case 'toad':
+        grid[x][y] = true;
+        grid[(x+1+cols)%cols][y] = true;
+        grid[(x+2+cols)%cols][y] = true;
+        grid[(x-1+cols)%cols][(y+1)%rows] = true;
+        grid[x][(y+1)%rows] = true;
+        grid[(x+1+cols)%cols][(y+1)%rows] = true;
+        break;
+      case 'beacon':
+        grid[x][y] = true;
+        grid[(x+1+cols)%cols][y] = true;
+        grid[x][(y+1)%rows] = true;
+        grid[(x+2+cols)%cols][(y+1)%rows] = true;
+        grid[(x+2+cols)%cols][(y+2)%rows] = true;
+        grid[(x+3+cols)%cols][(y+2)%rows] = true;
+        break;
+    }
+  }
+  drawGrid();
+}
+
+function getMousePos(canvas, evt) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor((evt.clientX - rect.left) / cellSize),
+    y: Math.floor((evt.clientY - rect.top) / cellSize)
+  };
+}
+
+function resetGrid() {
+  grid = createGrid();
+  drawGrid();
+  resetClock();
+}
+
+function startClock() {
+  if (!isClockRunning) {
+    isClockRunning = true;
+    clockStartTime = Date.now() - clockElapsedTime;
+    clockInterval = setInterval(updateClock, 1000);
+    toggleClockBtn.textContent = 'Pause Clock';
+  }
+}
+
+function pauseClock() {
+  if (isClockRunning) {
+    isClockRunning = false;
+    clearInterval(clockInterval);
+    clockElapsedTime = Date.now() - clockStartTime;
+    toggleClockBtn.textContent = 'Resume Clock';
+  }
+}
+
+function resetClock() {
+  pauseClock();
+  clockElapsedTime = 0;
+  updateClockDisplay();
+  toggleClockBtn.textContent = 'Start Clock';
+}
+
+function updateClock() {
+  const currentTime = Date.now();
+  clockElapsedTime = currentTime - clockStartTime;
+  updateClockDisplay();
+}
+
+function updateClockDisplay() {
+  const seconds = Math.floor(clockElapsedTime / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const displaySeconds = seconds % 60;
+  timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`;
+}
+
+canvas.addEventListener('mousedown', (event) => {
+  isDrawing = true;
+  const pos = getMousePos(canvas, event);
+  addPattern(pos.x, pos.y);
+});
+
+canvas.addEventListener('mousemove', (event) => {
+  if (isDrawing) {
+    const pos = getMousePos(canvas, event);
+    addPattern(pos.x, pos.y);
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  isDrawing = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+  isDrawing = false;
+});
+
+playPauseBtn.addEventListener('click', togglePlayPause);
+
+patternSelect.addEventListener('change', (event) => {
+  selectedPattern = event.target.value;
+});
+
+speedSlider.addEventListener('input', (event) => {
+  speed = parseInt(event.target.value);
+});
+
+modeToggle.addEventListener('change', (event) => {
+  mode = event.target.value;
+});
+
+resetBtn.addEventListener('click', () => {
+  resetGrid();
+  resetClock();
+});
+
+toggleClockBtn.addEventListener('click', () => {
+  if (isClockRunning) {
+    pauseClock();
+  } else {
+    startClock();
+  }
+});
+
+resetClockBtn.addEventListener('click', resetClock);
+
+drawGrid();
+updateClockDisplay();
+</script>
+</body></html>
